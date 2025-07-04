@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL LEFT JOIN Advanced Presentation (Fixed)</title>
+    <style>
+        /* General Styling */
+        :root {
+            --left-color: #007bff;
+            --right-color: #28a745;
+            --result-color: #6f42c1;
+            --connector-color: #fd7e14;
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --highlight-bg: rgba(0, 123, 255, 0.15);
+            --key-highlight-bg: rgba(253, 126, 20, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .slide-container {
+            width: 1000px;
+            height: 750px;
+            background-color: #ffffff;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        /* --- Animation Keyframes --- */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @keyframes slideInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes draw-line { to { stroke-dashoffset: 0; } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+        /* General element styling */
+        .animated { opacity: 0; animation-fill-mode: forwards; }
+        .main-title { font-size: 32px; font-weight: bold; text-align: center; margin-bottom: 20px; }
+        
+        /* Layout Areas */
+        .top-area { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .table-container { width: 48%; }
+
+        /* Table Styling */
+        .table-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; text-align: center; }
+        .sql-table { border: 2px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        .sql-table.dimmed .table-row:not(.highlight) { opacity: 0.3; }
+        .table-row { display: flex; transition: all 0.3s ease; }
+        .table-row.header { font-weight: bold; color: #fff; }
+        .table-cell { padding: 8px; flex: 1; text-align: center; font-size: 14px; border-bottom: 1px solid var(--border-color); }
+        .table-row:last-child .table-cell { border-bottom: none; }
+
+        /* Color & Highlight Styling */
+        #left-table .header { background-color: var(--left-color); }
+        #right-table .header { background-color: var(--right-color); }
+        #result-table .header { background-color: var(--result-color); }
+        .highlight { background-color: var(--highlight-bg) !important; transform: scale(1.03); }
+        .key-column { background-color: var(--key-highlight-bg); font-weight: bold; }
+        .null-value { color: #dc3545; font-style: italic; font-weight: bold; }
+
+        /* SQL Query and Result Area */
+        #sql-query { background-color: #e9ecef; padding: 12px; border-radius: 8px; font-family: "Courier New", Courier, monospace; font-size: 16px; text-align: center; margin-bottom: 15px; }
+        .keyword { font-weight: bold; color: #d63384; }
+        .result-title { font-size: 22px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+        #result-table { width: 90%; margin: 0 auto; }
+
+        /* --- SVG and Ghost Elements for Animation --- */
+        #connector-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        .connector-line { stroke: var(--connector-color); stroke-width: 3px; stroke-linecap: round; stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: draw-line 0.6s forwards; }
+        .ghost-row { position: absolute; border: 2px solid var(--connector-color); box-shadow: 0 5px 15px rgba(0,0,0,0.2); background-color: white; border-radius: 6px; z-index: 5; transition: all 0.8s cubic-bezier(0.5, 0, 0.1, 1); }
+    </style>
+</head>
+<body>
+
+<div class="slide-container" id="slideContainer">
+    <svg id="connector-svg"></svg>
+    <div id="ghost-container"></div>
+
+    <h1 id="main-title" class="animated">SQL Joins: <span style="color: var(--left-color);">LEFT JOIN</span></h1>
+
+    <div class="top-area">
+        <div id="left-table-container" class="table-container animated">
+            <h2 class="table-title" style="color: var(--left-color);">Bảng Trái (Employees)</h2>
+            <div id="left-table" class="sql-table"></div>
+        </div>
+        <div id="right-table-container" class="table-container animated">
+            <h2 class="table-title" style="color: var(--right-color);">Bảng Phải (Departments)</h2>
+            <div id="right-table" class="sql-table"></div>
+        </div>
+    </div>
+    
+    <div id="sql-query" class="animated"></div>
+    
+    <div id="result-container" class="animated">
+         <h2 class="result-title" style="color: var(--result-color);">Bảng Kết Quả</h2>
+         <div id="result-table" class="sql-table"></div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DATA ---
+        const leftTableData = { headers: ['EmpID', 'Name', 'DeptID'], rows: [['1', 'Alice', '101'], ['2', 'Bob', '102'], ['3', 'Charlie', '101'], ['4', 'David', '103'], ['5', 'Eve', null]] };
+        const rightTableData = { headers: ['DeptID', 'DeptName'], rows: [['101', 'Sales'], ['102', 'Marketing']] };
+
+        // --- DOM Elements ---
+        const getEl = (id) => document.getElementById(id);
+        const slideContainer = getEl('slideContainer'), mainTitle = getEl('main-title'), leftTableContainer = getEl('left-table-container'), rightTableContainer = getEl('right-table-container'), leftTableDiv = getEl('left-table'), rightTableDiv = getEl('right-table'), resultTableDiv = getEl('result-table'), resultContainer = getEl('result-container'), sqlQueryDiv = getEl('sql-query'), svg = getEl('connector-svg'), ghostContainer = getEl('ghost-container');
+
+        // --- Helper Functions ---
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        
+        function createTable(container, data, idPrefix) {
+            container.innerHTML = '';
+            const header = document.createElement('div');
+            header.className = 'table-row header';
+            data.headers.forEach(text => header.innerHTML += `<div class="table-cell">${text}</div>`);
+            container.appendChild(header);
+
+            data.rows.forEach((rowData, i) => {
+                const row = document.createElement('div');
+                row.className = 'table-row';
+                row.id = `${idPrefix}-row-${i}`;
+                rowData.forEach((cellData, j) => {
+                    const isKey = data.headers[j] === 'DeptID';
+                    const isNull = cellData === null;
+                    const cell = document.createElement('div');
+                    cell.className = `table-cell ${isNull ? 'null-value' : ''}`;
+                    cell.innerHTML = isNull ? 'NULL' : cellData;
+                    if (isKey) cell.classList.add('key-column');
+                    cell.id = `${idPrefix}-cell-${i}-${j}`;
+                    row.appendChild(cell);
+                });
+                container.appendChild(row);
+            });
+        }
+        
+        const getElCoords = (el) => el.getBoundingClientRect();
+        
+        function drawConnection(startEl, endEl) {
+            const slideRect = getElCoords(slideContainer);
+            const startRect = getElCoords(startEl);
+            const endRect = getElCoords(endEl);
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', startRect.left + startRect.width / 2 - slideRect.left);
+            line.setAttribute('y1', startRect.top + startRect.height / 2 - slideRect.top);
+            line.setAttribute('x2', endRect.left + endRect.width / 2 - slideRect.left);
+            line.setAttribute('y2', endRect.top + endRect.height / 2 - slideRect.top);
+            line.classList.add('connector-line');
+            svg.appendChild(line);
+        }
+        
+        async function animateRowCopy(sourceEl, targetRowIndex) {
+            const slideRect = getElCoords(slideContainer);
+            const startRect = getElCoords(sourceEl);
+            const resultHeader = resultTableDiv.querySelector('.header');
+            const targetRect = getElCoords(resultHeader);
+
+            const ghost = sourceEl.cloneNode(true);
+            ghost.classList.add('ghost-row');
+            
+            ghost.style.left = `${startRect.left - slideRect.left}px`;
+            ghost.style.top = `${startRect.top - slideRect.top}px`;
+            ghost.style.width = `${startRect.width}px`;
+            ghost.style.height = `${startRect.height}px`;
+            
+            ghostContainer.appendChild(ghost);
+
+            await sleep(50);
+            
+            ghost.style.left = `${targetRect.left - slideRect.left}px`;
+            ghost.style.top = `${targetRect.top - slideRect.top + (targetRowIndex + 1) * targetRect.height}px`;
+            ghost.style.opacity = '0';
+            ghost.style.transform = 'scale(0.8)';
+
+            await sleep(800);
+            ghost.remove();
+        }
+
+        // --- Main Animation Logic ---
+        async function runPresentation() {
+            // 1. RESET
+            ghostContainer.innerHTML = ''; svg.innerHTML = '';
+            [mainTitle, leftTableContainer, rightTableContainer, sqlQueryDiv, resultContainer].forEach(el => el.style.animation = 'none');
+            createTable(leftTableDiv, leftTableData, 'left');
+            createTable(rightTableDiv, rightTableData, 'right');
+            resultTableDiv.innerHTML = ''; sqlQueryDiv.innerHTML = '';
+            
+            await sleep(500);
+
+            // 2. INTRO
+            mainTitle.style.animation = 'popIn 1s forwards';
+            await sleep(1000);
+            leftTableContainer.style.animation = 'popIn 0.8s forwards';
+            rightTableContainer.style.animation = 'popIn 0.8s forwards 0.2s';
+            await sleep(1500);
+
+            // 3. SQL QUERY
+            sqlQueryDiv.innerHTML = `<span class="keyword">SELECT</span> * <span class="keyword">FROM</span> Employees <span class="keyword">LEFT JOIN</span> Departments <span class="keyword">ON</span> Employees.DeptID = Departments.DeptID;`;
+            sqlQueryDiv.style.animation = 'slideInUp 1s forwards';
+            await sleep(1000);
+
+            // 4. PROCESS ROWS
+            // *** SỬA LỖI: Thêm dòng này để Bảng Kết Quả hiện ra ***
+            resultContainer.style.animation = 'fadeIn 1s forwards';
+            await sleep(1000);
+            
+            resultTableDiv.insertAdjacentHTML('beforeend', `<div class="table-row header"><div class="table-cell">EmpID</div><div class="table-cell">Name</div><div class="table-cell">DeptID</div><div class="table-cell">DeptName</div></div>`);
+            
+            for (let i = 0; i < leftTableData.rows.length; i++) {
+                leftTableDiv.classList.add('dimmed'); rightTableDiv.classList.add('dimmed');
+                const leftRowEl = getEl(`left-row-${i}`);
+                leftRowEl.classList.add('highlight');
+                
+                const joinValue = leftTableData.rows[i][2];
+                const matchIndex = rightTableData.rows.findIndex(row => row[0] == joinValue);
+                
+                await sleep(1000);
+
+                if (matchIndex > -1) { // Match Found
+                    const rightRowEl = getEl(`right-row-${matchIndex}`);
+                    rightRowEl.classList.add('highlight');
+                    drawConnection(getEl(`left-cell-${i}-2`), getEl(`right-cell-${matchIndex}-0`));
+                    await sleep(800);
+
+                    animateRowCopy(leftRowEl, i);
+                    await animateRowCopy(rightRowEl, i);
+                    
+                    const resultData = [...leftTableData.rows[i], rightTableData.rows[matchIndex][1]];
+                    const newRowHTML = `<div class="table-row animated" style="animation: popIn 0.5s forwards;"><div class="table-cell">${resultData[0]}</div><div class="table-cell">${resultData[1]}</div><div class="table-cell key-column">${resultData[2]}</div><div class="table-cell">${resultData[3]}</div></div>`;
+                    resultTableDiv.insertAdjacentHTML('beforeend', newRowHTML);
+                    
+                    await sleep(500);
+                    rightRowEl.classList.remove('highlight');
+                } else { // No Match
+                    leftRowEl.style.animation = 'shake 0.5s';
+                    await sleep(800);
+                    leftRowEl.style.animation = 'none';
+
+                    await animateRowCopy(leftRowEl, i);
+
+                    const resultData = [...leftTableData.rows[i], null];
+                    const newRowHTML = `<div class="table-row animated" style="animation: popIn 0.5s forwards;"><div class="table-cell">${resultData[0]}</div><div class="table-cell">${resultData[1]}</div><div class="table-cell key-column ${resultData[2] === null ? 'null-value' : ''}">${resultData[2] === null ? 'NULL' : resultData[2]}</div><div class="table-cell null-value">NULL</div></div>`;
+                    resultTableDiv.insertAdjacentHTML('beforeend', newRowHTML);
+                }
+                
+                svg.innerHTML = '';
+                leftRowEl.classList.remove('highlight');
+                await sleep(1200);
+            }
+
+            // 5. FINAL MESSAGE & LOOP
+            leftTableDiv.classList.remove('dimmed'); rightTableDiv.classList.remove('dimmed');
+            sqlQueryDiv.innerHTML = '✨ Giữ lại tất cả từ bảng <b>TRÁI</b>, chỉ ghép phần khớp từ bảng <b>PHẢI</b>. ✨';
+            sqlQueryDiv.style.animation = 'popIn 1s forwards';
+            
+            await sleep(8000); // Đợi 8s trước khi lặp lại
+            runPresentation();
+        }
+
+        runPresentation();
+    });
+</script>
+
+</body>
+</html>
